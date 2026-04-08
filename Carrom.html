@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Carrom Pool: Classic Edition</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --wood-frame: #2c1610;
+            --wood-board: #f4d093;
+            --accent: #10b981;
+            --accent-glow: #34d399;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body {
+            margin: 0; padding: 0;
+            background: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; height: 100dvh;
+            width: 100vw;
+            overflow: hidden; 
+            touch-action: none; 
+            overscroll-behavior: none; /* Prevents Android pull-to-refresh */
+            color: white;
+        }
+
+        .screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            z-index: 10;
+        }
+
+        .hidden {
+            opacity: 0; pointer-events: none; transform: scale(0.95);
+        }
+
+        /* --- LOBBY --- */
+        #lobby-screen {
+            background: radial-gradient(circle at top, #1e293b, #000);
+            z-index: 50;
+        }
+
+        .logo-area { text-align: center; margin-bottom: 5vh; }
+        .logo-area h1 {
+            font-size: 10vw; max-font-size: 52px; margin: 0; 
+            background: linear-gradient(to bottom, #fff, #94a3b8);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            text-shadow: 0 10px 20px rgba(0,0,0,0.5); letter-spacing: 3px; text-transform: uppercase;
+        }
+        .logo-area p { color: var(--accent); font-size: 14px; letter-spacing: 5px; text-transform: uppercase; margin-top: 5px; font-weight: bold;}
+
+        .mode-card {
+            background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px; padding: 2.5vh 5vw; margin: 1vh; width: 85%; max-width: 350px;
+            text-align: center; cursor: pointer; transition: all 0.2s;
+        }
+        .mode-card:hover, .mode-card:active {
+            background: rgba(16, 185, 129, 0.1); border-color: var(--accent); transform: translateY(-3px);
+        }
+        .mode-card h3 { margin: 0 0 5px 0; font-size: 20px; text-transform: uppercase; letter-spacing: 1px;}
+        .mode-card p { margin: 0; color: #94a3b8; font-size: 13px; }
+
+        /* --- GAME --- */
+        #game-container { z-index: 20; padding: 2vh 4vw; max-width: 600px; width: 100%; justify-content: space-evenly;}
+        
+        #game-header {
+            display: flex; justify-content: space-between; align-items: center; width: 100%;
+        }
+        .btn-small { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 10px 20px; border-radius: 25px; font-weight: bold; cursor: pointer; font-size: 14px;}
+        
+        #score-board {
+            display: flex; justify-content: space-around; width: 100%; padding: 1.5vh;
+            background: rgba(0, 0, 0, 0.5); border-radius: 15px; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);
+        }
+        .player-stat { display: flex; flex-direction: column; align-items: center; flex: 1; border-right: 1px solid rgba(255,255,255,0.1); }
+        .player-stat:last-child { border-right: none; }
+        .player-name { font-size: 11px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .player-score { font-size: 24px; font-weight: bold; transition: color 0.3s; }
+        .active-turn { color: var(--accent-glow) !important; text-shadow: 0 0 15px rgba(52, 211, 153, 0.5); transform: scale(1.15); }
+
+        #canvas-wrapper {
+            position: relative; border-radius: 20px; padding: 16px;
+            background: var(--wood-frame); box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.2) 0px, rgba(0,0,0,0.2) 2px, transparent 2px, transparent 4px);
+            display: flex; justify-content: center; align-items: center;
+        }
+        canvas { display: block; border-radius: 10px; background-color: var(--wood-board); cursor: crosshair; touch-action: none;}
+
+        #controls { width: 100%; padding: 2vh; background: rgba(0, 0, 0, 0.5); border-radius: 15px; text-align: center; border: 1px solid rgba(255,255,255,0.1);}
+        .control-label { font-size: 13px; color: #94a3b8; margin-bottom: 2vh; display: block; letter-spacing: 0.5px;}
+        input[type="range"] { width: 95%; -webkit-appearance: none; background: rgba(255, 255, 255, 0.15); height: 12px; border-radius: 6px; outline: none; }
+        
+        /* Larger thumb for Android comfort */
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 40px; height: 40px; border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.8), inset 0 0 5px var(--accent); border: 2px solid var(--accent); cursor: pointer;
+        }
+
+        /* --- RESULTS --- */
+        #result-screen { background: rgba(0, 0, 0, 0.95); z-index: 60; backdrop-filter: blur(5px); }
+        .result-box {
+            background: linear-gradient(135deg, #1e293b, #0f172a); padding: 50px 40px; border-radius: 20px;
+            text-align: center; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 50px rgba(0,0,0,0.8); width: 90%; max-width: 400px;
+        }
+        #result-title { font-size: 36px; margin: 0 0 30px 0; font-weight: 900; text-transform: uppercase; color: var(--accent-glow);}
+        .btn-large { background: var(--accent); border: none; color: #000; padding: 18px 40px; border-radius: 30px; font-size: 18px; font-weight: 900; cursor: pointer; transition: transform 0.2s; text-transform: uppercase; letter-spacing: 1px; width: 100%;}
+        .btn-large:active { transform: scale(0.95); }
+
+        .creator-tag { font-size: 11px; color: rgba(255, 255, 255, 0.3); letter-spacing: 1px; text-align: center; text-transform: uppercase; padding-top: 1vh;}
+
+    </style>
+</head>
+<body>
+
+<div id="lobby-screen" class="screen">
+    <div class="logo-area">
+        <h1>CARROM</h1>
+        <p>Classic Edition</p>
+    </div>
+
+    <div class="mode-card" onclick="startGame('PRACTICE', 1)">
+        <h3>1 Player</h3>
+        <p>Solo Freestyle Training</p>
+    </div>
+
+    <div class="mode-card" onclick="startGame('LOCAL', 2)">
+        <h3>2 Players</h3>
+        <p>Head-to-Head Match</p>
+    </div>
+
+    <div class="mode-card" onclick="startGame('LOCAL', 3)">
+        <h3>3 Players</h3>
+        <p>Three-Way Battle</p>
+    </div>
+
+    <div class="mode-card" onclick="startGame('LOCAL', 4)">
+        <h3>4 Players</h3>
+        <p>Full Board Multiplayer</p>
+    </div>
+
+    <div class="mode-card" onclick="startGame('AI', 2)">
+        <h3>Vs Computer</h3>
+        <p>Play Against AI</p>
+    </div>
+    
+    <div class="creator-tag">created by Vishnu S</div>
+</div>
+
+<div id="game-container" class="screen hidden">
+    <div id="game-header">
+        <button class="btn-small" onclick="quitGame()">&#8592; Quit</button>
+        <span id="turn-status" style="font-size: 16px; font-weight: bold; color: var(--accent-glow); text-transform: uppercase; letter-spacing: 1px;">Ready</span>
+        <div style="width: 75px;"></div> 
+    </div>
+
+    <div id="score-board">
+        </div>
+
+    <div id="canvas-wrapper">
+        <canvas id="carrom-board"></canvas>
+    </div>
+
+    <div id="controls">
+        <span class="control-label" id="instruction-text">Position Striker &bull; Pull back anywhere to shoot</span>
+        <input type="range" id="striker-slider" min="0" max="100" value="50">
+    </div>
+    
+    <div class="creator-tag">created by Vishnu S</div>
+</div>
+
+<div id="result-screen" class="screen hidden">
+    <div class="result-box">
+        <h2 id="result-title">Player 1 Wins!</h2>
+        <button class="btn-large" onclick="returnToLobby()">Main Menu</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('carrom-board');
+    const ctx = canvas.getContext('2d');
+    const slider = document.getElementById('striker-slider');
+    const screenLobby = document.getElementById('lobby-screen');
+    const screenGame = document.getElementById('game-container');
+    const screenResult = document.getElementById('result-screen');
+    const scoreBoard = document.getElementById('score-board');
+
+    let animId;
+    let size, scale;
+    let mode = 'MENU';
+    let numPlayers = 1;
+    let scores = [];
+    let currentPlayer = 0; 
+    let turnState = 'PLACE'; 
+    let pocketedThisTurn = false;
+    let dragStart = null;
+    let dragCurrent = null;
+
+    let padding, pocketRadius, boardInner;
+    let baselines = {};
+    let pockets = [];
+
+    const FRICTION = 0.988;
+    const WALL_RESTITUTION = 0.85;
+    const COIN_RESTITUTION = 0.92;
+    const MIN_VELOCITY = 0.05;
+
+    class Vector2 {
+        constructor(x, y) { this.x = x; this.y = y; }
+        add(v) { return new Vector2(this.x + v.x, this.y + v.y); }
+        sub(v) { return new Vector2(this.x - v.x, this.y - v.y); }
+        mult(n) { return new Vector2(this.x * n, this.y * n); }
+        mag() { return Math.sqrt(this.x * this.x + this.y * this.y); }
+        normalize() { const m = this.mag(); return m === 0 ? new Vector2(0,0) : new Vector2(this.x/m, this.y/m); }
+    }
+
+    class Coin {
+        constructor(x, y, radius, type) {
+            this.pos = new Vector2(x, y); this.vel = new Vector2(0, 0);
+            this.radius = radius; this.type = type; this.active = true;
+            this.mass = type === 'striker' ? 3.5 : 1.0;
+        }
+        update(dt) {
+            if (!this.active) return;
+            this.pos.x += this.vel.x * dt; this.pos.y += this.vel.y * dt;
+            this.vel.x *= Math.pow(FRICTION, dt); this.vel.y *= Math.pow(FRICTION, dt);
+            if (this.vel.mag() < MIN_VELOCITY) { this.vel.x = 0; this.vel.y = 0; }
+        }
+        draw(ctx) {
+            if (!this.active) return;
+            ctx.save(); ctx.translate(this.pos.x, this.pos.y);
+            ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 5*scale; ctx.shadowOffsetY = 3*scale;
+            ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+
+            let bc, dc;
+            if (this.type === 'white') { bc = '#fdfbf7'; dc = '#dcd7c8'; }
+            else if (this.type === 'black') { bc = '#3a3a3a'; dc = '#1a1a1a'; }
+            else if (this.type === 'queen') { bc = '#f43f5e'; dc = '#be123c'; }
+            else if (this.type === 'striker') { bc = '#f0f9ff'; dc = '#bae6fd'; }
+
+            let grad = ctx.createRadialGradient(-this.radius*0.2, -this.radius*0.2, this.radius*0.1, 0, 0, this.radius);
+            grad.addColorStop(0, bc); grad.addColorStop(1, dc);
+            ctx.fillStyle = grad; ctx.fill(); ctx.shadowColor = 'transparent';
+            ctx.lineWidth = 1*scale; ctx.strokeStyle = '#111'; ctx.stroke();
+
+            if (this.type === 'striker') {
+                ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.7, 0, Math.PI * 2);
+                ctx.strokeStyle = 'var(--accent)'; ctx.lineWidth = 2.5*scale; ctx.stroke();
+                ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.2, 0, Math.PI * 2);
+                ctx.fillStyle = 'var(--accent)'; ctx.fill();
+            } else {
+                ctx.beginPath(); ctx.arc(0, 0, this.radius * 0.6, 0, Math.PI * 2);
+                ctx.strokeStyle = this.type === 'white' ? '#a89f91' : '#4a4a4a';
+                if(this.type === 'queen') ctx.strokeStyle = '#fde047';
+                ctx.lineWidth = 1*scale; ctx.stroke();
+            }
+            ctx.restore();
+        }
+    }
+
+    let coinsList = [];
+    let striker = null;
+
+    function buildScoreBoard() {
+        scoreBoard.innerHTML = '';
+        for(let i = 0; i < numPlayers; i++) {
+            let label = `P${i+1}`;
+            if (mode === 'AI' && i === 1) label = 'COM';
+            if (mode === 'PRACTICE') label = 'Score';
+
+            scoreBoard.innerHTML += `
+                <div class="player-stat">
+                    <span class="player-name">${label}</span>
+                    <span class="player-score" id="score-p${i}">0</span>
+                </div>
+            `;
+        }
+    }
+
+    function startGame(selectedMode, players) {
+        mode = selectedMode;
+        numPlayers = players;
+        scores = new Array(numPlayers).fill(0);
+        currentPlayer = 0;
+
+        buildScoreBoard();
+        screenLobby.classList.add('hidden');
+        screenGame.classList.remove('hidden');
+
+        resize();
+        window.removeEventListener('resize', resize);
+        window.addEventListener('resize', resize);
+        setupInput();
+        resetBoard();
+        
+        animId = requestAnimationFrame(gameLoop);
+    }
+
+    function quitGame() {
+        if(animId) cancelAnimationFrame(animId);
+        screenGame.classList.add('hidden');
+        screenLobby.classList.remove('hidden');
+    }
+
+    function checkWinCondition() {
+        let remaining = coinsList.filter(c => c.active && c.type !== 'striker').length;
+        if (remaining === 0) endGame();
+    }
+
+    function endGame() {
+        if(animId) cancelAnimationFrame(animId);
+        
+        let maxScore = -1;
+        let winnerIndex = 0;
+        for(let i=0; i<scores.length; i++) {
+            if(scores[i] > maxScore) { maxScore = scores[i]; winnerIndex = i; }
+        }
+
+        const title = document.getElementById('result-title');
+
+        if (mode === 'PRACTICE') {
+            title.innerText = `Final Score: ${scores[0]}`;
+        } else if (mode === 'AI') {
+            title.innerText = winnerIndex === 0 ? "You Won!" : "Computer Won!";
+            title.style.color = winnerIndex === 0 ? "var(--accent-glow)" : "#f87171";
+        } else {
+            title.innerText = `Player ${winnerIndex + 1} Wins!`;
+            title.style.color = "var(--accent-glow)";
+        }
+
+        screenGame.classList.add('hidden');
+        screenResult.classList.remove('hidden');
+    }
+
+    function returnToLobby() {
+        screenResult.classList.add('hidden');
+        screenLobby.classList.remove('hidden');
+    }
+
+    function resize() {
+        if(screenGame.classList.contains('hidden')) return;
+        
+        // Android responsive logic ensuring no clipping
+        const w = window.innerWidth * 0.95;
+        // Calculate available height perfectly
+        const headerHeight = document.getElementById('game-header').offsetHeight;
+        const scoreHeight = document.getElementById('score-board').offsetHeight;
+        const controlsHeight = document.getElementById('controls').offsetHeight;
+        const h = window.innerHeight - (headerHeight + scoreHeight + controlsHeight + 80); 
+        
+        size = Math.min(w, h, 600);
+        
+        canvas.width = size; canvas.height = size;
+        scale = size / 500; 
+        
+        padding = 18 * scale; boardInner = size - padding; pocketRadius = 24 * scale;
+        const off = pocketRadius * 0.4;
+
+        pockets = [
+            { x: padding + off, y: padding + off },
+            { x: boardInner - off, y: padding + off },
+            { x: padding + off, y: boardInner - off },
+            { x: boardInner - off, y: boardInner - off }
+        ];
+
+        const baseDist = size * 0.18;
+        baselines = {
+            bottom: { isHoriz: true, y: size - baseDist, min: baseDist * 1.5, max: size - baseDist * 1.5, dirX: 0, dirY: -1 },
+            right:  { isHoriz: false, x: size - baseDist, min: baseDist * 1.5, max: size - baseDist * 1.5, dirX: -1, dirY: 0 },
+            top:    { isHoriz: true, y: baseDist, min: baseDist * 1.5, max: size - baseDist * 1.5, dirX: 0, dirY: 1 },
+            left:   { isHoriz: false, x: baseDist, min: baseDist * 1.5, max: size - baseDist * 1.5, dirX: 1, dirY: 0 }
+        };
+
+        if (striker && turnState === 'PLACE') updateStrikerPosition();
+    }
+
+    function resetBoard() {
+        coinsList = [];
+        const cx = size / 2; const cy = size / 2;
+        const cr = 11.5 * scale; const sr = 17.5 * scale;
+
+        coinsList.push(new Coin(cx, cy, cr, 'queen'));
+        for (let i = 0; i < 6; i++) {
+            const angle = (i * Math.PI) / 3;
+            coinsList.push(new Coin(cx + Math.cos(angle)*cr*2.1, cy + Math.sin(angle)*cr*2.1, cr, i % 2 === 0 ? 'white' : 'black'));
+        }
+        for (let i = 0; i < 12; i++) {
+            const angle = (i * Math.PI) / 6;
+            coinsList.push(new Coin(cx + Math.cos(angle)*cr*4.2, cy + Math.sin(angle)*cr*4.2, cr, i % 2 === 0 ? 'black' : 'white'));
+        }
+
+        striker = new Coin(0, 0, sr, 'striker');
+        coinsList.push(striker);
+        
+        pocketedThisTurn = false;
+        turnState = 'PLACE';
+        slider.value = 50;
+        updateStrikerPosition();
+        updateUI();
+    }
+
+    function getActiveBaseline() {
+        if (mode === 'PRACTICE') return baselines.bottom;
+        if (numPlayers === 2) return currentPlayer === 0 ? baselines.bottom : baselines.top;
+        if (numPlayers === 3) {
+            if (currentPlayer === 0) return baselines.bottom;
+            if (currentPlayer === 1) return baselines.right;
+            if (currentPlayer === 2) return baselines.top;
+        }
+        if (numPlayers === 4) {
+            if (currentPlayer === 0) return baselines.bottom;
+            if (currentPlayer === 1) return baselines.right;
+            if (currentPlayer === 2) return baselines.top;
+            if (currentPlayer === 3) return baselines.left;
+        }
+        return baselines.bottom;
+    }
+
+    function updateStrikerPosition() {
+        if (turnState !== 'PLACE') return;
+        const val = slider.value / 100;
+        const base = getActiveBaseline();
+        if(base.isHoriz) {
+            striker.pos.x = base.min + val * (base.max - base.min);
+            striker.pos.y = base.y;
+        } else {
+            striker.pos.x = base.x;
+            striker.pos.y = base.min + val * (base.max - base.min);
+        }
+        striker.vel.x = 0; striker.vel.y = 0;
+    }
+
+    slider.addEventListener('input', updateStrikerPosition);
+
+    function setupInput() {
+        canvas.onmousedown = null; window.onmousemove = null; window.onmouseup = null;
+        canvas.ontouchstart = null; window.ontouchmove = null; window.ontouchend = null;
+
+        const getPos = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return new Vector2(clientX - rect.left, clientY - rect.top);
+        };
+
+        const onStart = (e) => {
+            if (turnState !== 'PLACE' && turnState !== 'AIM') return;
+            if (mode === 'AI' && currentPlayer === 1) return; 
+            
+            e.preventDefault();
+            dragStart = getPos(e); dragCurrent = dragStart; turnState = 'AIM';
+            document.getElementById('controls').classList.add('hidden');
+        };
+
+        const onMove = (e) => {
+            if (turnState === 'MOVE' || turnState === 'AI_THINKING') return;
+            e.preventDefault();
+            if (turnState === 'AIM' && dragStart) dragCurrent = getPos(e);
+        };
+
+        const onEnd = (e) => {
+            if (turnState === 'AIM' && dragStart && dragCurrent) {
+                const aimVec = dragStart.sub(dragCurrent);
+                const power = aimVec.mag();
+                
+                if (power > 5 * scale) {
+                    const forceMultiplier = 0.16; const maxSpeed = 40 * scale;
+                    striker.vel = aimVec.mult(forceMultiplier);
+                    if (striker.vel.mag() > maxSpeed) striker.vel = striker.vel.normalize().mult(maxSpeed);
+                    
+                    turnState = 'MOVE';
+                    document.getElementById('turn-status').innerText = "Simulating...";
+                    document.getElementById('turn-status').style.color = "#fbbf24";
+                } else {
+                    turnState = 'PLACE';
+                    document.getElementById('controls').classList.remove('hidden');
+                }
+                dragStart = null; dragCurrent = null;
+            }
+        };
+
+        canvas.addEventListener('mousedown', onStart); window.addEventListener('mousemove', onMove, {passive: false}); window.addEventListener('mouseup', onEnd);
+        canvas.addEventListener('touchstart', onStart, {passive: false}); window.addEventListener('touchmove', onMove, {passive: false}); window.addEventListener('touchend', onEnd);
+    }
+
+    function checkPocketing() {
+        coinsList.forEach(coin => {
+            if (!coin.active) return;
+            for (let p of pockets) {
+                if (coin.pos.sub(new Vector2(p.x, p.y)).mag() < pocketRadius) {
+                    coin.active = false; coin.vel = new Vector2(0,0);
+                    
+                    if (coin.type !== 'striker') {
+                        let pts = coin.type === 'queen' ? 50 : (coin.type === 'white' ? 20 : 10);
+                        scores[currentPlayer] += pts;
+                        pocketedThisTurn = true;
+                    } else {
+                        scores[currentPlayer] = Math.max(0, scores[currentPlayer] - 10);
+                        pocketedThisTurn = false; 
+                    }
+                    document.getElementById(`score-p${currentPlayer}`).innerText = scores[currentPlayer];
+                }
+            }
+        });
+    }
+
+    function takeAITurn() {
+        turnState = 'AI_THINKING';
+        document.getElementById('turn-status').innerText = "Computer Thinking...";
+        document.getElementById('turn-status').style.color = "#94a3b8";
+        document.getElementById('controls').classList.add('hidden');
+        
+        setTimeout(() => {
+            if(turnState !== 'AI_THINKING') return; 
+            
+            let validTargets = coinsList.filter(c => c.active && c.type !== 'striker');
+            if (validTargets.length === 0) return;
+            
+            let target = validTargets[Math.floor(Math.random() * validTargets.length)];
+            let pocket = pockets[Math.floor(Math.random() * pockets.length)];
+            
+            let toPocket = new Vector2(pocket.x - target.pos.x, pocket.y - target.pos.y).normalize();
+            let hitPoint = new Vector2(target.pos.x - toPocket.x * target.radius, target.pos.y - toPocket.y * target.radius);
+            
+            const base = getActiveBaseline();
+            if(base.isHoriz) {
+                striker.pos.y = base.y;
+                striker.pos.x = base.min + Math.random() * (base.max - base.min);
+            } else {
+                striker.pos.x = base.x;
+                striker.pos.y = base.min + Math.random() * (base.max - base.min);
+            }
+            
+            let aimVec = hitPoint.sub(striker.pos);
+            let power = Math.min(32 * scale, aimVec.mag() * 0.16 + 12 * scale);
+            let angle = Math.atan2(aimVec.y, aimVec.x) + (Math.random() - 0.5) * 0.08; 
+            
+            striker.vel = new Vector2(Math.cos(angle) * power, Math.sin(angle) * power);
+            turnState = 'MOVE';
+            document.getElementById('turn-status').innerText = "Computer Shoots";
+        }, 1200);
+    }
+
+    function physicsStep(dt) {
+        coinsList.forEach(c => c.update(dt));
+
+        coinsList.forEach(c => {
+            if (!c.active) return;
+            const r = c.radius;
+            if (c.pos.x < padding + r) { c.pos.x = padding + r; c.vel.x *= -WALL_RESTITUTION; }
+            if (c.pos.x > boardInner - r) { c.pos.x = boardInner - r; c.vel.x *= -WALL_RESTITUTION; }
+            if (c.pos.y < padding + r) { c.pos.y = padding + r; c.vel.y *= -WALL_RESTITUTION; }
+            if (c.pos.y > boardInner - r) { c.pos.y = boardInner - r; c.vel.y *= -WALL_RESTITUTION; }
+        });
+
+        for (let i = 0; i < coinsList.length; i++) {
+            for (let j = i + 1; j < coinsList.length; j++) {
+                let c1 = coinsList[i]; let c2 = coinsList[j];
+                if (!c1.active || !c2.active) continue;
+
+                let delta = c1.pos.sub(c2.pos); let dist = delta.mag(); let minDist = c1.radius + c2.radius;
+
+                if (dist < minDist && dist > 0) {
+                    let overlap = minDist - dist; let normal = delta.normalize();
+                    let totalMass = c1.mass + c2.mass;
+                    
+                    c1.pos = c1.pos.add(normal.mult(overlap * (c2.mass/totalMass)));
+                    c2.pos = c2.pos.sub(normal.mult(overlap * (c1.mass/totalMass)));
+
+                    let relVel = c1.vel.sub(c2.vel);
+                    let velAlongNorm = relVel.x * normal.x + relVel.y * normal.y;
+                    if (velAlongNorm > 0) continue;
+
+                    let impulse = -(1 + COIN_RESTITUTION) * velAlongNorm / (1/c1.mass + 1/c2.mass);
+                    let impVec = normal.mult(impulse);
+                    c1.vel = c1.vel.add(impVec.mult(1/c1.mass)); c2.vel = c2.vel.sub(impVec.mult(1/c2.mass));
+                }
+            }
+        }
+    }
+
+    function updateUI() {
+        if (turnState === 'PLACE') {
+            slider.value = 50; updateStrikerPosition();
+            
+            for(let i=0; i<numPlayers; i++) {
+                const el = document.getElementById(`score-p${i}`);
+                if(el) el.classList.toggle('active-turn', i === currentPlayer);
+            }
+
+            if (mode === 'AI' && currentPlayer === 1) {
+                takeAITurn();
+            } else {
+                document.getElementById('controls').classList.remove('hidden');
+                document.getElementById('turn-status').innerText = mode === 'PRACTICE' ? "Your Turn" : `Player ${currentPlayer + 1}'s Turn`;
+                document.getElementById('turn-status').style.color = "var(--accent-glow)";
+            }
+        }
+    }
+
+    function drawBoard() {
+        ctx.clearRect(0, 0, size, size);
+        const cx = size/2, cy = size/2;
+
+        ctx.strokeStyle = 'rgba(80, 20, 0, 0.7)'; ctx.save(); ctx.translate(cx, cy); ctx.beginPath();
+        for(let i=0; i<8; i++) { ctx.rotate(Math.PI/4); ctx.moveTo(0, 0); ctx.lineTo(0, -55 * scale); }
+        ctx.lineWidth = 1.5 * scale; ctx.stroke(); ctx.restore();
+
+        ctx.beginPath(); ctx.arc(cx, cy, 55 * scale, 0, Math.PI*2); ctx.lineWidth = 2 * scale; ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, 14 * scale, 0, Math.PI*2); ctx.fillStyle = '#b91c1c'; ctx.fill(); ctx.stroke();
+
+        ctx.lineWidth = 1.5 * scale;
+        const activeBase = getActiveBaseline();
+        
+        const drawBase = (line, isActive) => {
+            ctx.strokeStyle = isActive && turnState !== 'MOVE' && turnState !== 'AI_THINKING' ? 'var(--accent)' : 'rgba(80, 20, 0, 0.7)';
+            ctx.beginPath();
+            if(line.isHoriz) {
+                ctx.moveTo(line.min, line.y - 12*scale); ctx.lineTo(line.max, line.y - 12*scale);
+                ctx.moveTo(line.min, line.y + 12*scale); ctx.lineTo(line.max, line.y + 12*scale); ctx.stroke();
+                ctx.beginPath(); ctx.arc(line.min, line.y, 12*scale, 0, Math.PI*2); ctx.fillStyle='#b91c1c'; ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(line.max, line.y, 12*scale, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            } else {
+                ctx.moveTo(line.x - 12*scale, line.min); ctx.lineTo(line.x - 12*scale, line.max);
+                ctx.moveTo(line.x + 12*scale, line.min); ctx.lineTo(line.x + 12*scale, line.max); ctx.stroke();
+                ctx.beginPath(); ctx.arc(line.x, line.min, 12*scale, 0, Math.PI*2); ctx.fillStyle='#b91c1c'; ctx.fill(); ctx.stroke();
+                ctx.beginPath(); ctx.arc(line.x, line.max, 12*scale, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+            }
+        };
+
+        drawBase(baselines.bottom, activeBase === baselines.bottom);
+        drawBase(baselines.right, activeBase === baselines.right);
+        drawBase(baselines.top, activeBase === baselines.top);
+        drawBase(baselines.left, activeBase === baselines.left);
+
+        ctx.strokeStyle = 'rgba(80, 20, 0, 0.6)'; ctx.beginPath(); const o = size * 0.22;
+        ctx.moveTo(o, o); ctx.lineTo(padding + pocketRadius*1.4, padding + pocketRadius*1.4);
+        ctx.moveTo(size-o, o); ctx.lineTo(size-padding - pocketRadius*1.4, padding + pocketRadius*1.4);
+        ctx.moveTo(o, size-o); ctx.lineTo(padding + pocketRadius*1.4, size-padding - pocketRadius*1.4);
+        ctx.moveTo(size-o, size-o); ctx.lineTo(size-padding - pocketRadius*1.4, size-padding - pocketRadius*1.4); ctx.stroke();
+
+        pockets.forEach(p => {
+            ctx.beginPath(); ctx.arc(p.x, p.y, pocketRadius, 0, Math.PI*2);
+            let grad = ctx.createRadialGradient(p.x, p.y, pocketRadius*0.5, p.x, p.y, pocketRadius);
+            grad.addColorStop(0, '#000'); grad.addColorStop(1, '#222');
+            ctx.fillStyle = grad; ctx.fill();
+            ctx.lineWidth = 3 * scale; ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.stroke();
+        });
+
+        // Persistent Faint Aim Guide (Before Dragging)
+        if (turnState === 'PLACE' || (turnState === 'AIM' && dragStart && dragStart.sub(dragCurrent).mag() <= 5*scale)) {
+            const lineDist = boardInner * 0.6; // Show a long guiding line
+            const endX = striker.pos.x + (activeBase.dirX * lineDist);
+            const endY = striker.pos.y + (activeBase.dirY * lineDist);
+
+            ctx.beginPath(); 
+            ctx.moveTo(striker.pos.x, striker.pos.y); 
+            ctx.lineTo(endX, endY);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)'; 
+            ctx.lineWidth = 2 * scale; 
+            ctx.setLineDash([8 * scale, 8 * scale]); 
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // Active Power/Aim Arrow (While Dragging)
+        if (turnState === 'AIM' && dragStart && dragCurrent) {
+            const aimVec = dragStart.sub(dragCurrent);
+            const power = aimVec.mag();
+            
+            if (power > 5 * scale) {
+                let visualVec = aimVec;
+                if (power * 0.16 > 40 * scale) visualVec = aimVec.normalize().mult((40 * scale) / 0.16);
+
+                const endX = striker.pos.x + visualVec.x * 4; 
+                const endY = striker.pos.y + visualVec.y * 4;
+
+                ctx.beginPath(); ctx.moveTo(striker.pos.x, striker.pos.y); ctx.lineTo(endX, endY);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'; 
+                ctx.lineWidth = 4 * scale; 
+                ctx.setLineDash([12 * scale, 12 * scale]); 
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                ctx.beginPath(); ctx.arc(endX, endY, striker.radius * 0.8, 0, Math.PI * 2);
+                ctx.lineWidth = 2 * scale; ctx.stroke();
+            }
+        }
+    }
+
+    function gameLoop() {
+        if (turnState === 'MOVE') {
+            let moving = false;
+            for(let s = 0; s < 6; s++) physicsStep(1.0 / 6);
+            coinsList.forEach(c => { if (c.active && c.vel.mag() > 0) moving = true; });
+            
+            checkPocketing();
+
+            if (!moving) {
+                if (!striker.active) striker.active = true;
+                
+                if (mode !== 'PRACTICE' && !pocketedThisTurn) {
+                    currentPlayer = (currentPlayer + 1) % numPlayers;
+                }
+                
+                pocketedThisTurn = false;
+                turnState = 'PLACE';
+                updateUI();
+                checkWinCondition();
+            }
+        }
+
+        drawBoard();
+        coinsList.filter(c => c.type === 'queen').forEach(c => c.draw(ctx));
+        coinsList.filter(c => c.type === 'black' || c.type === 'white').forEach(c => c.draw(ctx));
+        if(striker.active) striker.draw(ctx);
+
+        animId = requestAnimationFrame(gameLoop);
+    }
+</script>
+</body>
+</html>
